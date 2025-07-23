@@ -1,0 +1,71 @@
+Part 1: Code Review & Debugging
+
+1. Corrected version with explanations
+
+from flask import request, jsonify
+from sqlalchemy.exc import IntegrityError
+from decimal import Decimal
+
+@app.route('/api/products', methods=['POST'])
+def create_product():
+    data = request.json or {}
+
+    # Validate required fields
+    required_fields = ['name', 'sku', 'price', 'warehouse_id', 'initial_quantity']
+    missing = [field for field in required_fields if field not in data]
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+
+    try:
+        # Enforce SKU uniqueness
+        if Product.query.filter_by(sku=data['sku']).first():
+            return jsonify({"error": "SKU must be unique"}), 400
+
+        # Create product
+        product = Product(
+            name=data['name'],
+            sku=data['sku'],
+            price=Decimal(str(data['price'])),
+        )
+        db.session.add(product)
+        db.session.flush()  # Assign product.id without committing
+
+        # Add inventory entry
+        inventory = Inventory(
+            product_id=product.id,
+            warehouse_id=data['warehouse_id'],
+            quantity=data['initial_quantity']
+        )
+        db.session.add(inventory)
+
+        db.session.commit()
+        return jsonify({"message": "Product created", "product_id": product.id}), 201
+
+    except IntegrityError as e:
+        db.session.rollback()
+        return jsonify({"error": "Database error", "details": str(e)}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
+
+2. Issues Identified
+
+ Issue                                       Type            Explanation    
+
+ No SKU uniqueness check                    - Business logic - `sku` must be unique across the platform; duplicates will lead to incorrect stock tracking.                    
+ No input validation                        - Technical      - Missing checks for required fields, types, and constraints.                                                    
+ No error handling                          - Technical      - Any exception (e.g., DB constraint error) will crash the endpoint without a proper response.                   
+ Product & inventory commit separately      - Data integrity - If the second `db.session.commit()` fails, the product is added but inventory is not — leads to inconsistency.
+ Price might be stored as float             - Technical      - Inaccurate for currency; should use `Decimal`.                                                                
+ No check for existing product in warehouse - Business logic - A product can exist in multiple warehouses, but this assumes a new one each time.                             
+ No rollback on failure                     - Technical      - If second commit fails, the first is still persisted.                                                         
+ All fields assumed required                - Business logic - Some fields might be optional but are accessed directly (e.g., `data['price']`), causing `KeyError`.         
+
+2. Impact in Production
+
+Duplicate SKUs - Broken downstream inventory tracking.
+Unhandled exceptions - App crashes or 500 errors.
+Inconsistent database state - Orphaned product entries.
+Precision loss in prices - Incorrect billing and reporting.
+Poor UX - Hard to debug issues and delayed order processing.
