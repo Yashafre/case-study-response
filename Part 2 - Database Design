@@ -74,6 +74,7 @@ CREATE TABLE sales_activity (
     FOREIGN KEY (product_id) REFERENCES products(id)
 );
 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 2. Questions to Product Team
 
@@ -85,6 +86,7 @@ Do we support returns or negative sales?
 Should we track cost price vs selling price?
 Do suppliers belong to a company or are they global?
 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 3. Design Decisions
 
