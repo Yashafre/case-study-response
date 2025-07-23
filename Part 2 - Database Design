@@ -1,0 +1,95 @@
+1. Schema Design
+
+CREATE TABLE companies (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE warehouses (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    company_id INT NOT NULL,
+    name VARCHAR(100),
+    location TEXT,
+    FOREIGN KEY (company_id) REFERENCES companies(id)
+);
+
+CREATE TABLE suppliers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100),
+    contact_email VARCHAR(100)
+);
+
+CREATE TABLE products (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    sku VARCHAR(50) UNIQUE NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    product_type ENUM('simple', 'bundle') DEFAULT 'simple'
+);
+
+CREATE TABLE inventory (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    product_id INT,
+    warehouse_id INT,
+    quantity INT DEFAULT 0,
+    FOREIGN KEY (product_id) REFERENCES products(id),
+    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+    UNIQUE (product_id, warehouse_id)
+);
+
+CREATE TABLE inventory_history (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    product_id INT,
+    warehouse_id INT,
+    quantity_change INT,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reason TEXT
+);
+
+CREATE TABLE product_suppliers (
+    product_id INT,
+    supplier_id INT,
+    PRIMARY KEY (product_id, supplier_id),
+    FOREIGN KEY (product_id) REFERENCES products(id),
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+);
+
+-- Bundle mapping (for composite products)
+CREATE TABLE product_bundles (
+    bundle_id INT,
+    component_id INT,
+    quantity INT,
+    PRIMARY KEY (bundle_id, component_id),
+    FOREIGN KEY (bundle_id) REFERENCES products(id),
+    FOREIGN KEY (component_id) REFERENCES products(id)
+);
+
+CREATE TABLE sales_activity (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    product_id INT,
+    warehouse_id INT,
+    sale_date DATE,
+    quantity INT,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+
+2. Questions to Product Team
+
+How is the low-stock threshold set (global, per product, per warehouse)?
+Can a product have multiple suppliers?
+Should bundle stock auto-update when components are updated?
+How do we define “recent” for sales activity?
+Do we support returns or negative sales?
+Should we track cost price vs selling price?
+Do suppliers belong to a company or are they global?
+
+
+3. Design Decisions
+
+Indexes: sku indexed for fast lookup; foreign keys for referential integrity.
+Inventory UNIQ(product_id, warehouse_id): Ensures 1 entry per warehouse per product.
+Bundles in separate table: Keeps product table normalized.
+Enums for clarity: e.g., product_type is either simple or bundle.
+History table: Useful for audits, analytics.
